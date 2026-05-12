@@ -1,10 +1,10 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 // Routes
 import assessmentRoutes from './routes/assessment.js';
 import adminRoutes from './routes/admin.js';
+import { supabase } from './utils/supabase.js';
 
 dotenv.config();
 
@@ -23,18 +23,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Platform ARAH API is running' });
 });
 
-// Database connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/arah-platform';
-
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('MongoDB connection error:', error);
-  });
+// Start server (no MongoDB dependency)
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log('Using Supabase as database backend');
+});
 
 export default app;

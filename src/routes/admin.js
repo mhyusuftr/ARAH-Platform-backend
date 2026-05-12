@@ -1,9 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import Admin from '../models/Admin.js';
-import Assessment from '../models/Assessment.js';
-import Client from '../models/Client.js';
+import { supabase } from '../utils/supabase.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
@@ -12,9 +10,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    const admin = await Admin.findOne({ username });
     
-    if (!admin) {
+    const { data: admin, error } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('username', username)
+      .single();
+    
+    if (error || !admin) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
@@ -23,7 +26,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
-    const token = jwt.sign({ id: admin._id, role: admin.role }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: admin.id, role: admin.role }, JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, admin: { username: admin.username, nama: admin.nama, role: admin.role } });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -47,9 +50,12 @@ const authMiddleware = (req, res, next) => {
 // Get all clients/assessments
 router.get('/clients', authMiddleware, async (req, res) => {
   try {
-    const assessments = await Assessment.find()
-      .populate('clientId')
-      .sort({ createdAt: -1 });
+    const { data: assessments, error } = await supabase
+      .from('assessments')
+      .select('*, clients(*)')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
     res.json(assessments);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -59,7 +65,13 @@ router.get('/clients', authMiddleware, async (req, res) => {
 // Get client detail
 router.get('/clients/:id', authMiddleware, async (req, res) => {
   try {
-    const assessment = await Assessment.findById(req.params.id).populate('clientId');
+    const { data: assessment, error } = await supabase
+      .from('assessments')
+      .select('*, clients(*)')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error) throw error;
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
     res.json(assessment);
   } catch (error) {
@@ -70,12 +82,21 @@ router.get('/clients/:id', authMiddleware, async (req, res) => {
 // Dashboard Stats
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
-    const totalClients = await Client.countDocuments();
-    const completedAssessments = await Assessment.countDocuments({ completedAt: { $exists: true } });
+    const { count: totalClients, error: clientError } = await supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: completedAssessments, error: assessmentError } = await supabase
+      .from('assessments')
+      .select('*', { count: 'exact', head: true })
+      .not('completed_at', 'is', null);
     
+    if (clientError) throw clientError;
+    if (assessmentError) throw assessmentError;
+
     res.json({
-      totalClients,
-      completedAssessments
+      totalClients: totalClients || 0,
+      completedAssessments: completedAssessments || 0
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

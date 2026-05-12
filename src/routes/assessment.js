@@ -1,6 +1,5 @@
 import express from 'express';
-import Client from '../models/Client.js';
-import Assessment from '../models/Assessment.js';
+import { supabase } from '../utils/supabase.js';
 import { calculateRiasecScore } from '../services/riasecScoring.js';
 
 const router = express.Router();
@@ -9,9 +8,23 @@ const router = express.Router();
 router.post('/start', async (req, res) => {
   try {
     const clientData = req.body;
-    const client = new Client(clientData);
-    await client.save();
-    res.status(201).json({ clientId: client._id });
+    const { data, error } = await supabase
+      .from('clients')
+      .insert({
+        nama: clientData.nama,
+        usia: clientData.usia,
+        jenis_kelamin: clientData.jenisKelamin,
+        alamat: clientData.alamat,
+        status_perkawinan: clientData.statusPerkawinan,
+        dukungan_keluarga: clientData.dukunganKeluarga,
+        tanggungan: clientData.tanggungan,
+        pendidikan_terakhir: clientData.pendidikanTerakhir
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ clientId: data.id });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -23,8 +36,13 @@ router.post('/submit', async (req, res) => {
     const { clientId, answers, attentionCheck } = req.body;
     
     // Check if client exists
-    const client = await Client.findById(clientId);
-    if (!client) {
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError || !client) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
@@ -35,21 +53,31 @@ router.post('/submit', async (req, res) => {
     const scoringResult = calculateRiasecScore(answers);
 
     // Save Assessment
-    const assessment = new Assessment({
-      clientId,
-      answers,
-      attentionCheckPassed,
-      isValid: attentionCheckPassed,
-      ...scoringResult
-    });
+    const { data: assessment, error: assessmentError } = await supabase
+      .from('assessments')
+      .insert({
+        client_id: clientId,
+        answers: answers,
+        attention_check_passed: attentionCheckPassed,
+        is_valid: attentionCheckPassed,
+        raw_scores: scoringResult.rawScores,
+        normalized_scores: scoringResult.normalizedScores,
+        categories: scoringResult.categories,
+        ranked_profile: scoringResult.rankedProfile,
+        top3: scoringResult.top3,
+        bottom3: scoringResult.bottom3
+      })
+      .select()
+      .single();
 
-    await assessment.save();
+    if (assessmentError) throw assessmentError;
+
     res.status(201).json({ 
-      assessmentId: assessment._id, 
+      assessmentId: assessment.id, 
       top3: assessment.top3,
       bottom3: assessment.bottom3,
-      rankedProfile: assessment.rankedProfile,
-      isValid: assessment.isValid
+      rankedProfile: assessment.ranked_profile,
+      isValid: assessment.is_valid
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -61,18 +89,20 @@ router.post('/validate', async (req, res) => {
   try {
     const { assessmentId, persepsiSesuai, persepsiTidakSesuai, pekerjaanDisenangi, pekerjaanDikuasai } = req.body;
     
-    const assessment = await Assessment.findByIdAndUpdate(
-      assessmentId, 
-      {
-        persepsiSesuai,
-        persepsiTidakSesuai,
-        pekerjaanDisenangi,
-        pekerjaanDikuasai,
-        completedAt: new Date()
-      },
-      { new: true }
-    );
+    const { data: assessment, error } = await supabase
+      .from('assessments')
+      .update({
+        persepsi_sesuai: persepsiSesuai,
+        persepsi_tidak_sesuai: persepsiTidakSesuai,
+        pekerjaan_disenangi: pekerjaanDisenangi,
+        pekerjaan_dikuasai: pekerjaanDikuasai,
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', assessmentId)
+      .select()
+      .single();
 
+    if (error) throw error;
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
     }
@@ -86,13 +116,16 @@ router.post('/validate', async (req, res) => {
 // 4. Get Final Result
 router.get('/result/:id', async (req, res) => {
   try {
-    const assessment = await Assessment.findById(req.params.id).populate('clientId');
+    const { data: assessment, error } = await supabase
+      .from('assessments')
+      .select('*, clients(*)')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error) throw error;
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
     }
-    
-    // Here we would also fetch the RiasecContent based on the Top 1 profile
-    // to include the descriptions and recommendations in the response.
     
     res.json(assessment);
   } catch (error) {
