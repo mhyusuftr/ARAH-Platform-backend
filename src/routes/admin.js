@@ -50,13 +50,13 @@ const authMiddleware = (req, res, next) => {
 // Get all clients/assessments
 router.get('/clients', authMiddleware, async (req, res) => {
   try {
-    const { data: assessments, error } = await supabase
-      .from('assessments')
-      .select('*, clients(*)')
+    const { data: clients, error } = await supabase
+      .from('clients')
+      .select('*, assessments(*)')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    res.json(assessments);
+    res.json(clients);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -65,15 +65,38 @@ router.get('/clients', authMiddleware, async (req, res) => {
 // Get client detail
 router.get('/clients/:id', authMiddleware, async (req, res) => {
   try {
-    const { data: assessment, error } = await supabase
-      .from('assessments')
-      .select('*, clients(*)')
+    const { data: client, error } = await supabase
+      .from('clients')
+      .select('*, assessments(*)')
       .eq('id', req.params.id)
       .single();
 
     if (error) throw error;
-    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
-    res.json(assessment);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    
+    // Transform back to the format the frontend expects for the detail modal
+    const assessment = client.assessments && client.assessments.length > 0 ? client.assessments[0] : null;
+    const responseData = assessment ? {
+      ...assessment,
+      clients: client
+    } : {
+      clients: client,
+      // Provide empty defaults if no assessment is completed
+      answers: {},
+      raw_scores: {},
+      normalized_scores: {},
+      categories: {},
+      top3: [],
+      bottom3: [],
+      attention_check_passed: false,
+      is_valid: false,
+      persepsi_sesuai: null,
+      persepsi_tidak_sesuai: null,
+      pekerjaan_disenangi: [],
+      pekerjaan_dikuasai: []
+    };
+    
+    res.json(responseData);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

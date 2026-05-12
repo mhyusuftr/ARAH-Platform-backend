@@ -5,7 +5,7 @@ const assessmentSchema = new mongoose.Schema({
   
   answers: {
     type: Map,
-    of: Number, // 1-4, or 0 for 'kurang paham'
+    of: Number, // 1-4 (Sangat Tidak Setuju=1 s/d Sangat Setuju=4)
     required: true
   },
   

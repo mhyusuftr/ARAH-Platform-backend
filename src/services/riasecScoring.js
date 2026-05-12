@@ -19,12 +19,45 @@ export const calculateRiasecScore = (answers) => {
   const normalizedScores = {};
   const categories = {};
   
+  // RIASEC Profiles based on Research RIASEC.jpeg
+  const riasecProfiles = {
+    R: {
+      deskripsi: 'Suka bekerja terutama dengan tangan, membuat, memperbaiki, merakit atau membangun sesuatu, menggunakan alat atau mesin, serta seringkali bekerja di luar ruangan. Suka merawat hewan, bekerja dengan tanaman.',
+      keterampilanKunci: 'Menggunakan dan mengoperasikan peralatan, alat dan mesin, merancang, membangun, memperbaiki, bekerja secara manual, mengukur, detail, mekanik, mengemudi, bergerak, bekerja secara fisik.',
+      contohPekerjaan: 'Pilot, petani, hortikultura, pembangun, insinyur, personel angkatan bersenjata, mekanik, tukang pelapis, tukang listrik, teknologi komputer, penjaga taman, olahragawan.'
+    },
+    I: {
+      deskripsi: 'Suka menemukan dan meneliti, mengamati, menyelidiki, bereksperimen, mengajukan pertanyaan, menyelesaikan masalah.',
+      keterampilanKunci: 'Berpikir analitis dan logis, menghitung, berkomunikasi tertulis dan lisan, mendiagnosis, merancang, merumuskan, ilmu pengetahuan, kimia, kelautan, kehutanan, laboratorium, medis atau kesehatan.',
+      contohPekerjaan: 'Ilmuwan, penelitian, pekerja medis dan kesehatan, ahli kimia, ahli kelautan, teknisi kehutanan, teknisi pertanian, dokter, ahli biologi, psikolog.'
+    },
+    A: {
+      deskripsi: 'Suka menggunakan kata-kata, seni, musik atau drama untuk berkomunikasi, melakukan, mengekspresikan diri, membuat dan merancang sesuatu.',
+      keterampilanKunci: 'Mengekspresikan secara artistik atau fisik, berbicara, menulis, menyanyi, tampil, merancang, menyajikan, merencanakan, menyusun, bermain, menari.',
+      contohPekerjaan: 'Artis, ilustrator, fotografer, penulis, komposer, penyanyi, musisi, penari, aktor, reporter, editor, pengiklan, penata rambut, perancang busana.'
+    },
+    S: {
+      deskripsi: 'Suka mengajar, melatih dan memberi informasi, membantu, mengobati, menyembuhkan dan melayani, menyapa, peduli dengan kesejahteraan diri dan orang lain.',
+      keterampilanKunci: 'Berkomunikasi secara lisan dan tertulis, peduli dan melatih, mendukung, bertemu, dan membantu, mewawancarai.',
+      contohPekerjaan: 'Guru, perawat, asisten medis, penasihat, petugas kepolisian, pekerja sosial, tenaga pengajar, petugas layanan informasi, petugas penjualan, pelayanan pelanggan, sekretaris.'
+    },
+    E: {
+      deskripsi: 'Suka bertemu dengan orang, memimpin, berbicara dan mempengaruhi orang lain, mendorong orang lain, bekerja dalam bisnis.',
+      keterampilanKunci: 'Menjual, mempromosikan dan mengembangkan ide-ide, berbicara di depan umum, mengelola, mengatur, memimpin dan menangkap, menghitung, merencanakan.',
+      contohPekerjaan: 'Tenaga penjual, pengacara, politisi, akuntan, pemilik bisnis, eksekutif manajer, agen perjalanan, promotor musik atau olahraga.'
+    },
+    C: {
+      deskripsi: 'Suka bekerja di dalam ruangan dan pada tugas-tugas yang melibatkan detail, pengorganisasian akurasi, mengikuti prosedur, bekerja dengan data angka, perencanaan dan acara.',
+      keterampilanKunci: 'Komputasi dan keyboarding, merekam dan menyimpan catatan, memperhatikan detail, bertemu dan menyapa, menghitung, menangani uang, mengatur, mengatur informasi.',
+      contohPekerjaan: 'Sekretaris, resepsionis, pekerja kantor, pustakawan, petugas bank, operator komputer, pengelola toko, petugas pengiriman.'
+    }
+  };
+  
   // Step 2 & 3: Normalisasi dan Kategori
+  // Skala 1-4, 4 soal per dimensi → Min=4, Max=16, Range=12
   for (const [dim, score] of Object.entries(rawScores)) {
     // Normalization formula: ((Total - 4) / 12) * 100
-    // Prevent negative if score < 4 (e.g. if 'kurang paham' was chosen)
-    const validScore = Math.max(score, 4); 
-    const normalized = Math.round(((validScore - 4) / 12) * 100);
+    const normalized = Math.round(((score - 4) / 12) * 100);
     normalizedScores[dim] = normalized;
 
     if (normalized <= 39) categories[dim] = 'Rendah';
@@ -40,11 +73,17 @@ export const calculateRiasecScore = (answers) => {
   const top3 = rankedProfile.slice(0, 3).map(p => p.dimension);
   const bottom3 = rankedProfile.slice(-3).map(p => p.dimension);
 
+  // Attach profile details to ranked profile
+  const detailedProfile = rankedProfile.map(p => ({
+    ...p,
+    detail: riasecProfiles[p.dimension]
+  }));
+
   return {
     rawScores,
     normalizedScores,
     categories,
-    rankedProfile,
+    rankedProfile: detailedProfile,
     top3,
     bottom3
   };
