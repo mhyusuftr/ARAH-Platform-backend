@@ -102,6 +102,31 @@ router.get('/clients/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// Delete client
+router.delete('/clients/:id', authMiddleware, async (req, res) => {
+  try {
+    // Delete assessments first to avoid foreign key constraints
+    await supabase
+      .from('assessments')
+      .delete()
+      .eq('client_id', req.params.id);
+
+    const { data: client, error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    
+    res.json({ message: 'Client deleted successfully', client });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Dashboard Stats
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
